@@ -3,8 +3,12 @@
 I made an [OS](https://github.com/skadewdl3/rust-osdev), then gave up. Now im making another one. Yay.
 
 ## How to compile and run?
-- It doesn't run rn.
-- But when in the future it does...
-- You'll need a nightly version of rust
-- Qemu
-- Extend this list if needed
+- Get dependencies:
+  - Qemu (qemu-base with GTK backend should suffice).
+  - OVMF
+  - Rust Nightly (make sure to get rust source with `rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu`)
+- Clone the repo
+- Make `run` executable: `chmod +x run`
+- Compile the bootloader: `cargo build`
+- Bootstrap UEFI firmware and os image: `./run bootstrap`
+- Run in Qemu: `./run`

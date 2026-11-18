@@ -1,15 +1,14 @@
 #![no_std]
 #![no_main]
 
-use core::panic::PanicInfo;
+use core::time::Duration;
+use log::info;
+use uefi::prelude::*;
 
-#[unsafe(no_mangle)]
-pub extern "C" fn _start() -> ! {
-    loop {}
-}
-
-/// Panic Handler
-#[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
+#[entry]
+fn main() -> Status {
+    uefi::helpers::init().unwrap();
+    info!("Hello world!");
+    boot::stall(Duration::from_secs(10));
+    Status::SUCCESS
 }

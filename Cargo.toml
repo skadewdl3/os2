@@ -4,10 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+log = "0.4.35"
+uefi = { version = "0.41.0",  features = [ "panic_handler", "logger" ] }
 
-
-[build]
-target = ".cargo/x86_64.json"
+[profile.dev.package.compiler_builtins]
+opt-level = "s"
 
 [[bin]]
 name = "os"
