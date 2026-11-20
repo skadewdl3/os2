@@ -20,14 +20,21 @@ bootstrap() {
     # echo "$ESP/OVMF_CODE.*\.fd"
 
     if [[ ! -n $(find "$ESP" -maxdepth 1 -type f -regex ".*/OVMF_CODE.*\.fd") ]]; then
-        cp "$OVMF"/OVMF_CODE*.fd "$ESP/"
+        echo "Copying OVMF Firmware code to $ESP"
+        cp "$OVMF"/OVMF_CODE*.fd "$ESP..."
     fi
 
     if [[ ! -n $(find "$ESP" -maxdepth 1 -type f -regex ".*/OVMF_VARS.*\.fd") ]]; then
-        cp "$OVMF"/OVMF_VARS*.fd "$ESP/"
+        echo "Copying OVMF Firmware variables to $ESP"
+        cp "$OVMF"/OVMF_VARS*.fd "$ESP..."
     fi
 
+    cargo build
+
+    echo "Copying bootloader image to $BOOT..."
     cp $BUILD/os.efi $BOOT/bootx64.efi
+
+    echo "Bootstrap done!"
 }
 
 qemu() {
