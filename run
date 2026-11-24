@@ -1,47 +1,80 @@
 #!/usr/bin/env bash
-ensure_dir() {
-    mkdir -p $1
-}
+shopt -s dotglob
 
 DIST="$PWD/dist"
 ESP="$DIST/esp"
 BOOT="$ESP/efi/boot"
-TARGET=$PWD/target
-BUILD=$TARGET/x86_64-unknown-uefi/debug
+TARGET="$PWD/target"
+BUILD="$TARGET/x86_64-unknown-uefi/debug"
 
-# Change to your OVMF path
-OVMF="/usr/share/OVMF/x64"
+OVMF="${OVMF:-/usr/share/OVMF/x64}"
+
+find_firmware() {
+    local directory=$1 file code variables code_name variables_name
+    local -a code_files=() variables_files=()
+
+    for file in "$directory"/*OVMF_CODE* "$directory"/*OVMF_VARS* "$directory"/*OVFM_VARS*; do
+        [[ -f $file ]] || continue
+        case ${file##*/} in
+            *OVMF_CODE*) code_files+=("$file") ;;
+            *) variables_files+=("$file") ;;
+        esac
+    done
+
+    # Prefer code and variables files from the same named variant.
+    for code in "${code_files[@]}"; do
+        code_name=${code##*/}
+        for variables in "${variables_files[@]}"; do
+            variables_name=${variables##*/}
+            variables_name=${variables_name/OVFM_VARS/OVMF_VARS}
+            if [[ ${code_name/OVMF_CODE/OVMF_VARS} == "$variables_name" ]]; then
+                FIRMWARE_CODE=$code
+                FIRMWARE_VARS=$variables
+                return 0
+            fi
+        done
+    done
+
+    if (( ${#code_files[@]} == 1 && ${#variables_files[@]} == 1 )); then
+        FIRMWARE_CODE=${code_files[0]}
+        FIRMWARE_VARS=${variables_files[0]}
+        return 0
+    fi
+
+    return 1
+}
 
 bootstrap() {
-    ensure_dir "$DIST"
-    ensure_dir "$ESP"
-    ensure_dir "$BOOT"
+    mkdir -p "$BOOT" || return
 
-    # echo "$ESP/OVMF_CODE.*\.fd"
+    if ! find_firmware "$ESP"; then
+        if ! find_firmware "$OVMF"; then
+            printf 'Cannot select an OVMF firmware pair in %s.\n' "$OVMF" >&2
+            return 1
+        fi
 
-    if [[ ! -n $(find "$ESP" -maxdepth 1 -type f -regex ".*/OVMF_CODE.*\.fd") ]]; then
-        echo "Copying OVMF Firmware code to $ESP"
-        cp "$OVMF"/OVMF_CODE*.fd "$ESP..."
+        echo "Copying OVMF firmware to $ESP"
+        cp -- "$FIRMWARE_CODE" "$FIRMWARE_VARS" "$ESP/" || return
     fi
 
-    if [[ ! -n $(find "$ESP" -maxdepth 1 -type f -regex ".*/OVMF_VARS.*\.fd") ]]; then
-        echo "Copying OVMF Firmware variables to $ESP"
-        cp "$OVMF"/OVMF_VARS*.fd "$ESP..."
-    fi
-
-    cargo build
+    cargo build || return
 
     echo "Copying bootloader image to $BOOT..."
-    cp $BUILD/os.efi $BOOT/bootx64.efi
+    cp -- "$BUILD/os.efi" "$BOOT/bootx64.efi" || return
 
     echo "Bootstrap done!"
 }
 
 qemu() {
+    if ! find_firmware "$ESP"; then
+        printf 'Cannot select an OVMF firmware pair in %s. Run ./run bootstrap.\n' "$ESP" >&2
+        return 1
+    fi
+
     qemu-system-x86_64 -enable-kvm \
-        -drive if=pflash,format=raw,readonly=on,file=$ESP/OVMF_CODE.4m.fd \
-        -drive if=pflash,format=raw,readonly=on,file=$ESP/OVMF_VARS.4m.fd \
-        -drive format=raw,file=fat:rw:$ESP \
+        -drive "if=pflash,format=raw,readonly=on,file=${FIRMWARE_CODE//,/,,}" \
+        -drive "if=pflash,format=raw,readonly=on,file=${FIRMWARE_VARS//,/,,}" \
+        -drive "format=raw,file=fat:rw:${ESP//,/,,}" \
         -display gtk
 }
 
